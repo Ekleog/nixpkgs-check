@@ -77,21 +77,15 @@ impl crate::Check for Chk {
 }
 
 fn closure_size(version: &str, pkg: &str) -> anyhow::Result<bytesize::ByteSize> {
-    let out = std::process::Command::new("nix")
-        .args(&["path-info", "--json", "-S", &crate::nix_eval_for(pkg)])
-        .stderr(std::process::Stdio::inherit())
-        .output()
-        .with_context(|| {
-            format!(
-                "getting the closure size of the {} version of package {}",
-                version, pkg
-            )
-        })?
-        .stdout;
-    let res = serde_json::from_slice::<serde_json::Value>(&out)
-        .context("parsing the output of `nix path-info --json -S` as JSON")?;
     Ok(bytesize::ByteSize::b(
-        res.get(0)
+        crate::nix(&["path-info", "--json", "-S", &crate::nix_eval_for(pkg)])
+            .with_context(|| {
+                format!(
+                    "getting closure size of the {} version of package {}",
+                    version, pkg
+                )
+            })?
+            .get(0)
             .ok_or_else(|| anyhow!("output of nix path-info -S is not an array"))?
             .get("closureSize")
             .ok_or_else(|| anyhow!("output of nix path-info -S does not have closureSize element"))?

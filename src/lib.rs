@@ -1,3 +1,5 @@
+use anyhow::Context;
+
 pub mod checks;
 
 #[derive(PartialEq, Eq)]
@@ -47,4 +49,14 @@ pub trait Check {
 
 fn nix_eval_for(pkg: &str) -> String {
     format!("((import ./. {{ overlays = []; }}).{})", pkg)
+}
+
+fn nix(args: &[&str]) -> anyhow::Result<serde_json::Value> {
+    let out = std::process::Command::new("nix")
+        .args(args)
+        .stderr(std::process::Stdio::inherit())
+        .output()
+        .context("executing the nix command")?
+        .stdout;
+    serde_json::from_slice(&out).context("parsing the output of the nix command")
 }

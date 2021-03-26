@@ -60,7 +60,8 @@ fn run(opt: Opt) -> anyhow::Result<()> {
 
     let mut checks = vec![];
     let mut new_checks = vec![
-        Box::new(checks::self_version::Chk::new()) as Box<dyn Check>,
+        Box::new(checks::environment::Chk::new().context("checking the environment")?)
+            as Box<dyn Check>,
         Box::new(checks::ask_pkg_names::Chk::new(changed_pkgs)?),
     ];
 
