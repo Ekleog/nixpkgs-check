@@ -17,7 +17,7 @@ fn info() -> ansi_term::ANSIString<'static> {
 struct Opt {
     /// The revision to check
     #[structopt(default_value = "HEAD")]
-    checked_ref: String,
+    to_check_ref: String,
 
     /// The base compared to which to check
     #[structopt(default_value = "master")]
@@ -33,9 +33,49 @@ fn run(opt: Opt) -> anyhow::Result<()> {
         "{}: checking changes between merge-base({base}, {checked}) and {checked} in repo {path:?}",
         info(),
         base = opt.base_ref,
-        checked = opt.checked_ref,
+        checked = opt.to_check_ref,
         path = opt.repo_path,
     );
+
+    // Open the repo
+    let repo = git2::Repository::open(&opt.repo_path)
+        .with_context(|| format!("opening the nixpkgs repo {:?}", opt.repo_path))?;
+
+    // Resolve the reference names
+    let base_ref = repo
+        .resolve_reference_from_short_name(&opt.base_ref)
+        .with_context(|| {
+            format!(
+                "finding reference {:?} in repo {:?}",
+                opt.base_ref, opt.repo_path
+            )
+        })?
+        .resolve()
+        .context("resolving base reference")?;
+    let to_check_ref = repo
+        .resolve_reference_from_short_name(&opt.to_check_ref)
+        .with_context(|| {
+            format!(
+                "finding reference {:?} in repo {:?}",
+                opt.to_check_ref, opt.repo_path
+            )
+        })?
+        .resolve()
+        .context("resolving to-check reference")?;
+
+    // The base reference is actually merge-base(base, to-check)
+    let base_oid = repo
+        .merge_base(
+            base_ref
+                .target()
+                .context("getting target for base reference")?,
+            to_check_ref
+                .target()
+                .context("getting target for to-check reference")?,
+        )
+        .context("finding the merge-base of the base branch and the to-check reference")?;
+
+    // Relocate ourselves to the repo
     std::env::set_current_dir(&opt.repo_path).with_context(|| {
         format!(
             "switching the current directory to nixpkgs root {:?}",

@@ -7,5 +7,7 @@ edition = "2018"
 [dependencies]
 ansi_term = "0.12.1"
 anyhow = "1.0"
+git2 = "0.13.17"
 structopt = "0.3.21"
+tempfile = "3.2"
 uuid = "0.8.2"
