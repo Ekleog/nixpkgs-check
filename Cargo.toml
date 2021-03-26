@@ -10,4 +10,4 @@ anyhow = "1.0"
 git2 = "0.13.17"
 structopt = "0.3.21"
 tempfile = "3.2"
-uuid = "0.8.2"
+uuid = { version = "0.8.2", features = ["v4"] }

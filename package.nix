@@ -1,9 +1,17 @@
-{ lib, rustPlatform }:
+{ lib, rustPlatform, openssl, pkg-config }:
 
 rustPlatform.buildRustPackage {
   name = "nixpkgs-check";
 
   src = lib.sourceFilesBySuffices ./. [".rs" ".toml" ".lock"];
 
-  cargoSha256 = "0rmgih407kw5sahhpr46i160idrhqamrwfcyn2568f47qxmzb1b2";
+  nativeBuildInputs = [
+    pkg-config
+  ];
+
+  buildInputs = [
+    openssl
+  ];
+
+  cargoSha256 = "0prw5ipg2z8gafs2y6xwszrjgab8l5m0nms5sw7w6f9mz8mdd6wc";
 }
