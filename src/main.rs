@@ -1,5 +1,5 @@
 use ansi_term::{Colour::Red, Style};
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use nixpkgs_check::{checks, Check};
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
@@ -63,10 +63,13 @@ fn run(opt: Opt) -> anyhow::Result<()> {
         });
     }
 
+    let changed_pkgs = autodetect_changed_pkgs(&opt.repo_path, &opt.base_ref, &opt.to_check_ref)
+        .context("auto-detecting which packages were changed based on commit message")?;
+
     let mut checks = vec![];
     let mut new_checks = vec![
         Box::new(checks::self_version::Chk::new()) as Box<dyn Check>,
-        Box::new(checks::ask_pkg_names::Chk::new()?),
+        Box::new(checks::ask_pkg_names::Chk::new(changed_pkgs)?),
     ];
 
     match checkout_done_r.try_recv() {
@@ -251,4 +254,59 @@ fn setup_checkouts(
         .context("checking out to-check commit in worktree")?;
 
     Ok(())
+}
+
+fn autodetect_changed_pkgs(
+    repo_path: &Path,
+    base_ref: &str,
+    to_check_ref: &str,
+) -> anyhow::Result<Vec<String>> {
+    // Open the repo
+    let repo = git2::Repository::open(repo_path)
+        .with_context(|| format!("opening the nixpkgs repo {:?}", repo_path))?;
+
+    // Resolve the reference names
+    let base_obj = repo
+        .revparse_single(&base_ref)
+        .with_context(|| format!("finding reference {:?} in repo {:?}", base_ref, repo_path))?;
+    let to_check_obj = repo.revparse_single(to_check_ref).with_context(|| {
+        format!(
+            "finding reference {:?} in repo {:?}",
+            to_check_ref, repo_path
+        )
+    })?;
+
+    // The base reference is actually merge-base(base, to-check)
+    let base_oid = repo
+        .merge_base(base_obj.id(), to_check_obj.id())
+        .context("finding the merge-base of the base reference and the to-check reference")?;
+
+    let mut pkgs = Vec::new();
+    let mut commit = to_check_obj
+        .peel_to_commit()
+        .context("peeling to-check object to a commit")?;
+    loop {
+        if commit.id() == base_oid {
+            break;
+        }
+        let summary = commit
+            .summary()
+            .ok_or_else(|| anyhow!("commit {} has a non-utf-8 summary", commit.id()))?;
+        let pkg = summary.split(":").next().ok_or_else(|| {
+            anyhow!(
+                "commit {} has summary that does not respect the convention: {}",
+                commit.id(),
+                summary
+            )
+        })?;
+        pkgs.push(pkg.to_string());
+        commit = commit
+            .parent(0)
+            .with_context(|| format!("recovering parent of commit {}", commit.id()))?;
+        // TODO: we should probably do a BFS or similar for more
+        // complex PR histories, but this should be enough for a first
+        // version
+    }
+
+    Ok(pkgs)
 }

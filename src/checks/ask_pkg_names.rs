@@ -1,3 +1,4 @@
+use ansi_term::Style;
 use anyhow::Context;
 
 pub struct Chk {
@@ -5,13 +6,17 @@ pub struct Chk {
 }
 
 impl Chk {
-    pub fn new() -> anyhow::Result<Chk> {
-        let mut pkgs = Vec::new();
+    pub fn new(mut pkgs: Vec<String>) -> anyhow::Result<Chk> {
+        println!(
+            "{} {:?}",
+            Style::new().bold().paint("Autodetected changed packages:"),
+            pkgs
+        );
         loop {
             let pkg: String =
                 dialoguer::Input::with_theme(&dialoguer::theme::ColorfulTheme::default())
                     .allow_empty(true)
-                    .with_prompt("changed package attribute path [empty to stop]")
+                    .with_prompt("do you want to test other attribute paths? [empty to stop]")
                     .interact_text()
                     .context("asking the user for package names")?;
             if pkg.len() == 0 {
@@ -25,7 +30,7 @@ impl Chk {
 
 impl crate::Check for Chk {
     fn uuid(&self) -> crate::CheckId {
-        crate::CheckId::from_uuid(uuid::Uuid::from_u128(0xd203e52c069ece82dde3c43cf82723f8))
+        crate::CheckId::from_uuid(uuid::Uuid::from_u128(0xd173872f19b0a1d30b96ed9929e23250))
     }
 
     fn run_before(&mut self) {}
