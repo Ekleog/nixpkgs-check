@@ -29,9 +29,24 @@ impl crate::Check for Chk {
 
     fn report(&self) -> String {
         format!(
-            "**version:** `{} v{}`",
+            "**version:** `{} v{}` on {}",
             env!("CARGO_PKG_NAME"),
-            env!("CARGO_PKG_VERSION")
+            env!("CARGO_PKG_VERSION"),
+            detect_environment(),
         )
+    }
+}
+
+fn detect_environment() -> String {
+    // TODO: upstream auto-detection to os_type?
+    if std::path::Path::new("/etc/NIXOS").exists() {
+        format!(
+            "NixOS {}",
+            std::fs::read_to_string("/run/current-system/nixos-version")
+                .unwrap_or(String::from(""))
+        )
+    } else {
+        let info = os_type::current_platform();
+        format!("{:?} {}", info.os_type, info.version)
     }
 }
