@@ -13,5 +13,5 @@ rustPlatform.buildRustPackage {
     openssl
   ];
 
-  cargoSha256 = "0prw5ipg2z8gafs2y6xwszrjgab8l5m0nms5sw7w6f9mz8mdd6wc";
+  cargoSha256 = "1gfvg393pwccb19jvc26g7qjds1k5n9v0fncs35v08abnjsg13a8";
 }

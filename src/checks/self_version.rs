@@ -21,7 +21,7 @@ impl crate::Check for Chk {
 
     fn report(&self) -> String {
         format!(
-            "**version**: {} v{}",
+            "**version:** `{} v{}`",
             env!("CARGO_PKG_NAME"),
             env!("CARGO_PKG_VERSION")
         )

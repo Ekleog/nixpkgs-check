@@ -1,7 +1,7 @@
 use ansi_term::{Colour::Red, Style};
 use anyhow::Context;
 use nixpkgs_check::{checks, Check};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
 fn error() -> ansi_term::ANSIString<'static> {
@@ -37,95 +37,48 @@ fn run(opt: Opt) -> anyhow::Result<()> {
         path = opt.repo_path,
     );
 
-    // Open the repo
-    let repo = git2::Repository::open(&opt.repo_path)
-        .with_context(|| format!("opening the nixpkgs repo {:?}", opt.repo_path))?;
-
-    // Resolve the reference names
-    let base_obj = repo.revparse_single(&opt.base_ref).with_context(|| {
-        format!(
-            "finding reference {:?} in repo {:?}",
-            opt.base_ref, opt.repo_path
-        )
-    })?;
-    let to_check_obj = repo.revparse_single(&opt.to_check_ref).with_context(|| {
-        format!(
-            "finding reference {:?} in repo {:?}",
-            opt.to_check_ref, opt.repo_path
-        )
-    })?;
-
-    // The base reference is actually merge-base(base, to-check)
-    let base_oid = repo
-        .merge_base(base_obj.id(), to_check_obj.id())
-        .context("finding the merge-base of the base reference and the to-check reference")?;
-    let base_obj = repo
-        .find_object(base_oid, None)
-        .context("recovering an object from the merge-base oid")?;
-    println!(
-        "{}: merge-base is {}",
-        info(),
-        base_obj
-            .short_id()
-            .context("retrieving short id for merge-base")?
-            .as_str()
-            .expect("short id is not utf-8"),
-    );
-
     // Checkout the commits in worktrees
     let tempdir = tempfile::tempdir().context("creating temporary directory")?;
     let base_path = tempdir.path().join("base");
     let to_check_path = tempdir.path().join("to-check");
     let initial_cwd = std::env::current_dir().context("recovering current working directory")?;
 
-    println!("{}: checking out base worktree at {:?}", info(), base_path);
-    let base_wt = repo
-        .worktree(
-            uuid::Uuid::new_v4()
-                .to_hyphenated()
-                .encode_lower(&mut uuid::Uuid::encode_buffer()),
-            &base_path,
-            None,
-        )
-        .context("creating worktree for base commit")?;
-    let base_repo = git2::Repository::open_from_worktree(&base_wt)
-        .context("opening base worktree as a repository")?;
-    base_repo
-        .checkout_tree(
-            &base_repo
-                .find_object(base_obj.id(), None)
-                .context("converting repo object to worktree object")?,
-            None,
-        )
-        .context("checking out base commit in worktree")?;
-    println!(
-        "{}: checking out to-check worktree at {:?}",
-        info(),
-        to_check_path,
-    );
-
-    let to_check_wt = repo
-        .worktree(
-            uuid::Uuid::new_v4()
-                .to_hyphenated()
-                .encode_lower(&mut uuid::Uuid::encode_buffer()),
-            &to_check_path,
-            None,
-        )
-        .context("creating worktree for to-check commit")?;
-    let to_check_repo = git2::Repository::open_from_worktree(&to_check_wt)
-        .context("opening base worktree as a repository")?;
-    to_check_repo
-        .checkout_tree(
-            &to_check_repo
-                .find_object(to_check_obj.id(), None)
-                .context("converting repo object to worktree object")?,
-            None,
-        )
-        .context("checking out to-check commit in worktree")?;
+    let (checkout_done_s, checkout_done_r) = std::sync::mpsc::channel::<anyhow::Result<()>>();
+    {
+        let repo_path = opt.repo_path.clone();
+        let base_path = base_path.clone();
+        let to_check_path = to_check_path.clone();
+        let base_ref = opt.base_ref.clone();
+        let to_check_ref = opt.to_check_ref.clone();
+        std::thread::spawn(move || {
+            checkout_done_s
+                .send(setup_checkouts(
+                    &repo_path,
+                    &base_path,
+                    &to_check_path,
+                    &base_ref,
+                    &to_check_ref,
+                ))
+                .expect("failed sending checkout result");
+        });
+    }
 
     let mut checks = vec![];
-    let mut new_checks = vec![Box::new(checks::self_version::Chk::new()) as Box<dyn Check>];
+    let mut new_checks = vec![
+        Box::new(checks::self_version::Chk::new()) as Box<dyn Check>,
+        Box::new(checks::ask_pkg_names::Chk::new()?),
+    ];
+
+    match checkout_done_r.try_recv() {
+        Ok(r) => r,
+        Err(_) => {
+            println!("Currently checking out the worktrees, please wait...");
+            checkout_done_r
+                .recv()
+                .context("receiving checkout result")?
+        }
+    }
+    .context("checking out worktrees")?;
 
     while !new_checks.is_empty() {
         // Go to the “before” folder
@@ -177,6 +130,8 @@ fn run(opt: Opt) -> anyhow::Result<()> {
     // Clean up the worktrees
     std::mem::drop(tempdir);
     println!("{}: pruning the no-longer-existing worktrees", info());
+    let repo = git2::Repository::open(&opt.repo_path)
+        .with_context(|| format!("opening the nixpkgs repo {:?}", &opt.repo_path))?;
     let worktrees = repo.worktrees().context("listing the worktrees")?;
     for worktree in &worktrees {
         if let Some(wname) = worktree {
@@ -198,7 +153,8 @@ fn run(opt: Opt) -> anyhow::Result<()> {
     println!("Report to be pasted in the PR message");
     println!("-------------------------------------");
     println!();
-    println!("##### nixpkgs-check report");
+    println!("### nixpkgs-check report");
+    println!();
     for c in checks {
         println!("{}", c.report());
     }
@@ -224,4 +180,75 @@ fn main() {
             }
         }
     }
+}
+
+fn setup_checkouts(
+    repo_path: &Path,
+    base_path: &Path,
+    to_check_path: &Path,
+    base_ref: &str,
+    to_check_ref: &str,
+) -> anyhow::Result<()> {
+    // Open the repo
+    let repo = git2::Repository::open(repo_path)
+        .with_context(|| format!("opening the nixpkgs repo {:?}", repo_path))?;
+
+    // Resolve the reference names
+    let base_obj = repo
+        .revparse_single(&base_ref)
+        .with_context(|| format!("finding reference {:?} in repo {:?}", base_ref, repo_path))?;
+    let to_check_obj = repo.revparse_single(to_check_ref).with_context(|| {
+        format!(
+            "finding reference {:?} in repo {:?}",
+            to_check_ref, repo_path
+        )
+    })?;
+
+    // The base reference is actually merge-base(base, to-check)
+    let base_oid = repo
+        .merge_base(base_obj.id(), to_check_obj.id())
+        .context("finding the merge-base of the base reference and the to-check reference")?;
+
+    // Checkout the worktrees
+    let base_wt = repo
+        .worktree(
+            uuid::Uuid::new_v4()
+                .to_hyphenated()
+                .encode_lower(&mut uuid::Uuid::encode_buffer()),
+            &base_path,
+            None,
+        )
+        .context("creating worktree for base commit")?;
+    let base_repo = git2::Repository::open_from_worktree(&base_wt)
+        .context("opening base worktree as a repository")?;
+    base_repo
+        .checkout_tree(
+            &base_repo
+                .find_object(base_oid, None)
+                .context("converting repo object to worktree object")?,
+            None,
+        )
+        .context("checking out base commit in worktree")?;
+
+    let to_check_wt = repo
+        .worktree(
+            uuid::Uuid::new_v4()
+                .to_hyphenated()
+                .encode_lower(&mut uuid::Uuid::encode_buffer()),
+            &to_check_path,
+            None,
+        )
+        .context("creating worktree for to-check commit")?;
+    let to_check_repo = git2::Repository::open_from_worktree(&to_check_wt)
+        .context("opening base worktree as a repository")?;
+    to_check_repo
+        .checkout_tree(
+            &to_check_repo
+                .find_object(to_check_obj.id(), None)
+                .context("converting repo object to worktree object")?,
+            None,
+        )
+        .context("checking out to-check commit in worktree")?;
+
+    Ok(())
 }
