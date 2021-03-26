@@ -44,3 +44,7 @@ pub trait Check {
     /// Generate the report
     fn report(&self) -> String;
 }
+
+fn nix_eval_for(pkg: &str) -> String {
+    format!("((import ./. {{ overlays = []; }}).{})", pkg)
+}

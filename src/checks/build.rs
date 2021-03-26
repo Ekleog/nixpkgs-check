@@ -39,7 +39,14 @@ impl crate::Check for Chk {
     }
 
     fn additional_needed_tests(&self) -> Vec<Box<dyn crate::Check>> {
-        vec![]
+        if self.builds_before == Some(true) && self.builds_after == Some(true) {
+            vec![
+                Box::new(crate::checks::closure_size::Chk::new(self.pkg.clone()))
+                    as Box<dyn crate::Check>,
+            ]
+        } else {
+            vec![]
+        }
     }
 
     fn report(&self) -> String {
@@ -65,10 +72,7 @@ impl crate::Check for Chk {
 fn build(version: &str, pkg: &str) -> anyhow::Result<bool> {
     // TODO: introduce a ctrl-c handler to kill only the nix-build if needed?
     Ok(std::process::Command::new("nix")
-        .args(&[
-            "build",
-            &format!("((import ./. {{ overlays = []; }}).{})", pkg),
-        ])
+        .args(&["build", &crate::nix_eval_for(pkg)])
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit())
         .output()
