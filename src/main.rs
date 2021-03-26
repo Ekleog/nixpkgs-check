@@ -42,38 +42,35 @@ fn run(opt: Opt) -> anyhow::Result<()> {
         .with_context(|| format!("opening the nixpkgs repo {:?}", opt.repo_path))?;
 
     // Resolve the reference names
-    let base_ref = repo
-        .resolve_reference_from_short_name(&opt.base_ref)
-        .with_context(|| {
-            format!(
-                "finding reference {:?} in repo {:?}",
-                opt.base_ref, opt.repo_path
-            )
-        })?
-        .resolve()
-        .context("resolving base reference")?;
-    let to_check_ref = repo
-        .resolve_reference_from_short_name(&opt.to_check_ref)
-        .with_context(|| {
-            format!(
-                "finding reference {:?} in repo {:?}",
-                opt.to_check_ref, opt.repo_path
-            )
-        })?
-        .resolve()
-        .context("resolving to-check reference")?;
+    let base_obj = repo.revparse_single(&opt.base_ref).with_context(|| {
+        format!(
+            "finding reference {:?} in repo {:?}",
+            opt.base_ref, opt.repo_path
+        )
+    })?;
+    let to_check_obj = repo.revparse_single(&opt.to_check_ref).with_context(|| {
+        format!(
+            "finding reference {:?} in repo {:?}",
+            opt.to_check_ref, opt.repo_path
+        )
+    })?;
 
     // The base reference is actually merge-base(base, to-check)
     let base_oid = repo
-        .merge_base(
-            base_ref
-                .target()
-                .context("getting target for base reference")?,
-            to_check_ref
-                .target()
-                .context("getting target for to-check reference")?,
-        )
-        .context("finding the merge-base of the base branch and the to-check reference")?;
+        .merge_base(base_obj.id(), to_check_obj.id())
+        .context("finding the merge-base of the base reference and the to-check reference")?;
+    let base_obj = repo
+        .find_object(base_oid, None)
+        .context("recovering an object from the merge-base oid")?;
+    println!(
+        "{}: merge-base is {}",
+        info(),
+        base_obj
+            .short_id()
+            .context("retrieving short id for merge-base")?
+            .as_str()
+            .expect("short id is not utf-8"),
+    );
 
     // Relocate ourselves to the repo
     std::env::set_current_dir(&opt.repo_path).with_context(|| {
