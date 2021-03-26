@@ -86,7 +86,9 @@ fn run(opt: Opt) -> anyhow::Result<()> {
 
         // Run the “before” tests
         for c in new_checks.iter_mut() {
-            c.run_before();
+            println!("Running base version of {}", c.name());
+            c.run_before()
+                .with_context(|| format!("running check {} on base version", c.name()))?;
         }
 
         // Go to the “after” folder
@@ -99,7 +101,9 @@ fn run(opt: Opt) -> anyhow::Result<()> {
 
         // Run the “after” tests
         for c in new_checks.iter_mut() {
-            c.run_after();
+            println!("Running to-check version of {}", c.name());
+            c.run_after()
+                .with_context(|| format!("running check {} on to-check version", c.name()))?;
         }
 
         // Update our check list

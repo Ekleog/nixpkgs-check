@@ -11,9 +11,17 @@ impl crate::Check for Chk {
         crate::CheckId::from_uuid(uuid::Uuid::from_u128(0xd203e52c069ece82dde3c43cf82723f8))
     }
 
-    fn run_before(&mut self) {}
+    fn name(&self) -> String {
+        "check-self-version".to_string()
+    }
 
-    fn run_after(&mut self) {}
+    fn run_before(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn run_after(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
 
     fn additional_needed_tests(&self) -> Vec<Box<dyn crate::Check>> {
         vec![]

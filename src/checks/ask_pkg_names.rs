@@ -33,12 +33,25 @@ impl crate::Check for Chk {
         crate::CheckId::from_uuid(uuid::Uuid::from_u128(0xd173872f19b0a1d30b96ed9929e23250))
     }
 
-    fn run_before(&mut self) {}
+    fn name(&self) -> String {
+        "ask-package-names".to_string()
+    }
 
-    fn run_after(&mut self) {}
+    fn run_before(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn run_after(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
 
     fn additional_needed_tests(&self) -> Vec<Box<dyn crate::Check>> {
-        vec![]
+        self.pkgs
+            .iter()
+            .map(|pkg| {
+                Box::new(crate::checks::build::Chk::new(pkg.clone())) as Box<dyn crate::Check>
+            })
+            .collect()
     }
 
     fn report(&self) -> String {
