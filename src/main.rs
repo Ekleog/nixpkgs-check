@@ -20,7 +20,7 @@ struct Opt {
     to_check_ref: String,
 
     /// The base compared to which to check
-    #[structopt(default_value = "master")]
+    #[structopt(long, short, default_value = "master")]
     base_ref: String,
 
     /// The path towards the nixpkgs repository
@@ -29,14 +29,6 @@ struct Opt {
 }
 
 fn run(opt: Opt) -> anyhow::Result<()> {
-    println!(
-        "{}: checking changes between merge-base({base}, {checked}) and {checked} in repo {path:?}",
-        info(),
-        base = opt.base_ref,
-        checked = opt.to_check_ref,
-        path = opt.repo_path,
-    );
-
     // Checkout the commits in worktrees
     let tempdir = tempfile::tempdir().context("creating temporary directory")?;
     let base_path = tempdir.path().join("base");
