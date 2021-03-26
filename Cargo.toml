@@ -5,4 +5,7 @@ authors = []
 edition = "2018"
 
 [dependencies]
+ansi_term = "0.12.1"
+anyhow = "1.0"
+structopt = "0.3.21"
 uuid = "0.8.2"
