@@ -289,17 +289,20 @@ fn autodetect_changed_pkgs(
         if commit.id() == base_oid {
             break;
         }
-        let summary = commit
-            .summary()
-            .ok_or_else(|| anyhow!("commit {} has a non-utf-8 summary", commit.id()))?;
-        let pkg = summary.split(":").next().ok_or_else(|| {
-            anyhow!(
-                "commit {} has summary that does not respect the convention: {}",
-                commit.id(),
-                summary
-            )
-        })?;
-        pkgs.push(pkg.to_string());
+        if commit.parent_count() == 1 {
+            // merge commits are usually not commits we're interested in
+            let summary = commit
+                .summary()
+                .ok_or_else(|| anyhow!("commit {} has a non-utf-8 summary", commit.id()))?;
+            let pkg = summary.split(":").next().ok_or_else(|| {
+                anyhow!(
+                    "commit {} has summary that does not respect the convention: {}",
+                    commit.id(),
+                    summary
+                )
+            })?;
+            pkgs.push(pkg.to_string());
+        }
         commit = commit
             .parent(0)
             .with_context(|| format!("recovering parent of commit {}", commit.id()))?;
