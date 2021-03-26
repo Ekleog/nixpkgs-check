@@ -1,9 +1,10 @@
 use anyhow::{anyhow, Context};
+use std::convert::TryFrom;
 
 pub struct Chk {
     pkg: String,
-    closure_size_before: Option<u64>,
-    closure_size_after: Option<u64>,
+    closure_size_before: Option<bytesize::ByteSize>,
+    closure_size_after: Option<bytesize::ByteSize>,
 }
 
 impl Chk {
@@ -43,26 +44,39 @@ impl crate::Check for Chk {
     }
 
     fn report(&self) -> String {
-        let closure_size_before = self.closure_size_before.unwrap_or_else(|| {
+        let cs_before = self.closure_size_before.unwrap_or_else(|| {
             panic!(
                 "did not check closure size for the base version of {}",
                 self.pkg
             )
         });
-        let closure_size_after = self.closure_size_after.unwrap_or_else(|| {
+        let cs_after = self.closure_size_after.unwrap_or_else(|| {
             panic!(
                 "did not check closure size for the base version of {}",
                 self.pkg
             )
         });
+        let cs_before_i = i64::try_from(cs_before.as_u64()).unwrap();
+        let cs_after_i = i64::try_from(cs_after.as_u64()).unwrap();
+        let diff: i64 = cs_after_i - cs_before_i;
+        let emoji = match diff {
+            _ if diff.abs() < cs_before_i / 10 => "✔",
+            _ if diff > 0 => "💚",
+            _ => "😢",
+        };
+        let did_incr = match diff {
+            _ if diff > 0 => "increased",
+            _ => "decreased",
+        };
+        let abs_diff = bytesize::ByteSize::b(diff.abs() as u64);
         format!(
-            "**path-info for {}:** went from {} to {}",
-            self.pkg, closure_size_before, closure_size_after
+            "**path-info for {}:** {} {} by {}, from {} to {}",
+            self.pkg, emoji, did_incr, abs_diff, cs_before, cs_after
         )
     }
 }
 
-fn closure_size(version: &str, pkg: &str) -> anyhow::Result<u64> {
+fn closure_size(version: &str, pkg: &str) -> anyhow::Result<bytesize::ByteSize> {
     let out = std::process::Command::new("nix")
         .args(&["path-info", "--json", "-S", &crate::nix_eval_for(pkg)])
         .stderr(std::process::Stdio::inherit())
@@ -76,11 +90,12 @@ fn closure_size(version: &str, pkg: &str) -> anyhow::Result<u64> {
         .stdout;
     let res = serde_json::from_slice::<serde_json::Value>(&out)
         .context("parsing the output of `nix path-info --json -S` as JSON")?;
-    Ok(res
-        .get(0)
-        .ok_or_else(|| anyhow!("output of nix path-info -S is not an array"))?
-        .get("closureSize")
-        .ok_or_else(|| anyhow!("output of nix path-info -S does not have closureSize element"))?
-        .as_u64()
-        .ok_or_else(|| anyhow!("output of nix path-info -S has a non-integer closureSize"))?)
+    Ok(bytesize::ByteSize::b(
+        res.get(0)
+            .ok_or_else(|| anyhow!("output of nix path-info -S is not an array"))?
+            .get("closureSize")
+            .ok_or_else(|| anyhow!("output of nix path-info -S does not have closureSize element"))?
+            .as_u64()
+            .ok_or_else(|| anyhow!("output of nix path-info -S has a non-integer closureSize"))?,
+    ))
 }
