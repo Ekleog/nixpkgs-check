@@ -1,5 +1,6 @@
 use anyhow::Context;
 use crossbeam_channel::Receiver;
+use std::path::Path;
 
 pub mod checks;
 
@@ -65,7 +66,16 @@ fn run_nix(
     capture_stdout: bool,
     args: &[&str],
 ) -> anyhow::Result<Option<std::process::Output>> {
-    let mut process = std::process::Command::new("nix");
+    run(killer, capture_stdout, Path::new("nix"), args)
+}
+
+fn run(
+    killer: &Receiver<()>,
+    capture_stdout: bool,
+    path: &Path,
+    args: &[&str],
+) -> anyhow::Result<Option<std::process::Output>> {
+    let mut process = std::process::Command::new(path);
     process.args(args).stderr(std::process::Stdio::inherit());
     if capture_stdout {
         process.stdout(std::process::Stdio::piped());

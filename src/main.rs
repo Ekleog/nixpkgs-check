@@ -1,7 +1,10 @@
 use ansi_term::{Colour::Red, Style};
 use anyhow::{anyhow, Context};
 use nixpkgs_check::{checks, Check};
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 use structopt::StructOpt;
 
 fn error() -> ansi_term::ANSIString<'static> {
@@ -263,7 +266,7 @@ fn autodetect_changed_pkgs(
     repo_path: &Path,
     base_ref: &str,
     to_check_ref: &str,
-) -> anyhow::Result<Vec<String>> {
+) -> anyhow::Result<HashSet<String>> {
     // Open the repo
     let repo = git2::Repository::open(repo_path)
         .with_context(|| format!("opening the nixpkgs repo {:?}", repo_path))?;
@@ -284,7 +287,7 @@ fn autodetect_changed_pkgs(
         .merge_base(base_obj.id(), to_check_obj.id())
         .context("finding the merge-base of the base reference and the to-check reference")?;
 
-    let mut pkgs = Vec::new();
+    let mut pkgs = HashSet::new();
     let mut commit = to_check_obj
         .peel_to_commit()
         .context("peeling to-check object to a commit")?;
@@ -304,7 +307,7 @@ fn autodetect_changed_pkgs(
                     summary
                 )
             })?;
-            pkgs.push(pkg.to_string());
+            pkgs.insert(pkg.to_string());
         }
         commit = commit
             .parent(0)

@@ -1,12 +1,12 @@
 use anyhow::{anyhow, Context};
 use crossbeam_channel::Receiver;
-use std::path::Path;
+use std::{path::Path, rc::Rc};
 
 pub struct Chk {
     pkg: String,
     builds_before: Option<bool>,
     builds_after: Option<bool>,
-    outs_dir: tempfile::TempDir,
+    outs_dir: Rc<tempfile::TempDir>,
 }
 
 impl Chk {
@@ -15,8 +15,10 @@ impl Chk {
             pkg,
             builds_before: None,
             builds_after: None,
-            outs_dir: tempfile::tempdir()
-                .context("creating temporary directory to hold build results")?,
+            outs_dir: Rc::new(
+                tempfile::tempdir()
+                    .context("creating temporary directory to hold build results")?,
+            ),
         })
     }
 }
@@ -44,14 +46,20 @@ impl crate::Check for Chk {
     }
 
     fn additional_needed_tests(&self) -> anyhow::Result<Vec<Box<dyn crate::Check>>> {
+        let mut res = Vec::new();
         if self.builds_before == Some(true) && self.builds_after == Some(true) {
-            Ok(vec![
+            res.push(
                 Box::new(crate::checks::closure_size::Chk::new(self.pkg.clone()))
                     as Box<dyn crate::Check>,
-            ])
-        } else {
-            Ok(vec![])
+            );
         }
+        if self.builds_after == Some(true) {
+            res.push(Box::new(crate::checks::run_binaries::Chk::new(
+                self.pkg.clone(),
+                self.outs_dir.clone(),
+            )))
+        }
+        Ok(res)
     }
 
     fn report(&self) -> String {
@@ -86,7 +94,6 @@ fn build(
     version: &str,
     pkg: &str,
 ) -> anyhow::Result<Option<bool>> {
-    // TODO: introduce a ctrl-c handler to kill only the nix-build if needed?
     Ok(crate::run_nix(
         killer,
         false,
