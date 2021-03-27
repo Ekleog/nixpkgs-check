@@ -8,10 +8,6 @@ fn error() -> ansi_term::ANSIString<'static> {
     Red.bold().paint("error")
 }
 
-fn info() -> ansi_term::ANSIString<'static> {
-    Style::new().bold().paint("info")
-}
-
 #[derive(StructOpt)]
 #[structopt(about = "Run sanity checks on a nixpkgs PR")]
 struct Opt {
@@ -94,7 +90,7 @@ fn run(opt: Opt) -> anyhow::Result<()> {
 
         // Run the “before” tests
         for c in new_checks.iter_mut() {
-            println!("Running base version of {}", c.name());
+            println!("running base version of {}", c.name());
             c.run_before(&killer_r)
                 .with_context(|| format!("running check {} on base version", c.name()))?;
         }
@@ -109,7 +105,7 @@ fn run(opt: Opt) -> anyhow::Result<()> {
 
         // Run the “after” tests
         for c in new_checks.iter_mut() {
-            println!("Running to-check version of {}", c.name());
+            println!("running to-check version of {}", c.name());
             c.run_after(&killer_r)
                 .with_context(|| format!("running check {} on to-check version", c.name()))?;
         }
@@ -136,7 +132,7 @@ fn run(opt: Opt) -> anyhow::Result<()> {
 
     // Clean up the worktrees
     std::mem::drop(tempdir);
-    println!("{}: pruning the no-longer-existing worktrees", info());
+    println!("pruning the no-longer-existing worktrees");
     let repo = git2::Repository::open(&opt.repo_path)
         .with_context(|| format!("opening the nixpkgs repo {:?}", &opt.repo_path))?;
     let worktrees = repo.worktrees().context("listing the worktrees")?;
