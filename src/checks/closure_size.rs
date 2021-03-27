@@ -70,7 +70,7 @@ impl crate::Check for Chk {
         };
         let abs_diff = bytesize::ByteSize::b(diff.abs() as u64);
         format!(
-            "**path-info for {}:** {} {} by {}, from {} to {}",
+            "**closure size for {}:** {} {} by {}, from {} to {}",
             self.pkg, emoji, did_incr, abs_diff, cs_before, cs_after
         )
     }
