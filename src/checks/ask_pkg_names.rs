@@ -9,7 +9,7 @@ impl Chk {
     pub fn new(mut pkgs: Vec<String>) -> anyhow::Result<Chk> {
         println!(
             "{} {:?}",
-            Style::new().bold().paint("Autodetected changed packages:"),
+            Style::new().bold().paint("autodetected changed packages:"),
             pkgs
         );
         loop {
