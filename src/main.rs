@@ -63,6 +63,7 @@ fn run(opt: Opt) -> anyhow::Result<()> {
         Box::new(checks::environment::Chk::new().context("checking the environment")?)
             as Box<dyn Check>,
         Box::new(checks::ask_pkg_names::Chk::new(changed_pkgs)?),
+        Box::new(checks::ask_other_tests::Chk::new()?),
     ];
 
     match checkout_done_r.try_recv() {
