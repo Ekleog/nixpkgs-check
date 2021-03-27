@@ -44,8 +44,8 @@ impl crate::Check for Chk {
         Ok(())
     }
 
-    fn additional_needed_tests(&self) -> Vec<Box<dyn crate::Check>> {
-        vec![]
+    fn additional_needed_tests(&self) -> anyhow::Result<Vec<Box<dyn crate::Check>>> {
+        Ok(vec![])
     }
 
     fn report(&self) -> String {

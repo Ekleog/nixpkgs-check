@@ -45,11 +45,11 @@ impl crate::Check for Chk {
         Ok(())
     }
 
-    fn additional_needed_tests(&self) -> Vec<Box<dyn crate::Check>> {
+    fn additional_needed_tests(&self) -> anyhow::Result<Vec<Box<dyn crate::Check>>> {
         self.pkgs
             .iter()
             .map(|pkg| {
-                Box::new(crate::checks::build::Chk::new(pkg.clone())) as Box<dyn crate::Check>
+                Ok(Box::new(crate::checks::build::Chk::new(pkg.clone())?) as Box<dyn crate::Check>)
             })
             .collect()
     }

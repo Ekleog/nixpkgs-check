@@ -42,7 +42,7 @@ pub trait Check {
     fn run_after(&mut self, killer: &Receiver<()>) -> anyhow::Result<()>;
 
     /// Returns the tests that are additionally needed
-    fn additional_needed_tests(&self) -> Vec<Box<dyn Check>>;
+    fn additional_needed_tests(&self) -> anyhow::Result<Vec<Box<dyn Check>>>;
 
     /// Generate the report
     fn report(&self) -> String;

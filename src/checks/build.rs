@@ -1,19 +1,23 @@
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use crossbeam_channel::Receiver;
+use std::path::Path;
 
 pub struct Chk {
     pkg: String,
     builds_before: Option<bool>,
     builds_after: Option<bool>,
+    outs_dir: tempfile::TempDir,
 }
 
 impl Chk {
-    pub fn new(pkg: String) -> Chk {
-        Chk {
+    pub fn new(pkg: String) -> anyhow::Result<Chk> {
+        Ok(Chk {
             pkg,
             builds_before: None,
             builds_after: None,
-        }
+            outs_dir: tempfile::tempdir()
+                .context("creating temporary directory to hold build results")?,
+        })
     }
 }
 
@@ -30,23 +34,23 @@ impl crate::Check for Chk {
     }
 
     fn run_before(&mut self, killer: &Receiver<()>) -> anyhow::Result<()> {
-        self.builds_before = build(killer, "base", &self.pkg)?;
+        self.builds_before = build(killer, self.outs_dir.path(), "base", &self.pkg)?;
         Ok(())
     }
 
     fn run_after(&mut self, killer: &Receiver<()>) -> anyhow::Result<()> {
-        self.builds_after = build(killer, "to-check", &self.pkg)?;
+        self.builds_after = build(killer, self.outs_dir.path(), "to-check", &self.pkg)?;
         Ok(())
     }
 
-    fn additional_needed_tests(&self) -> Vec<Box<dyn crate::Check>> {
+    fn additional_needed_tests(&self) -> anyhow::Result<Vec<Box<dyn crate::Check>>> {
         if self.builds_before == Some(true) && self.builds_after == Some(true) {
-            vec![
+            Ok(vec![
                 Box::new(crate::checks::closure_size::Chk::new(self.pkg.clone()))
                     as Box<dyn crate::Check>,
-            ]
+            ])
         } else {
-            vec![]
+            Ok(vec![])
         }
     }
 
@@ -76,11 +80,26 @@ impl crate::Check for Chk {
 }
 
 /// Returns true iff the build was successful
-fn build(killer: &Receiver<()>, version: &str, pkg: &str) -> anyhow::Result<Option<bool>> {
+fn build(
+    killer: &Receiver<()>,
+    outs_dir: &Path,
+    version: &str,
+    pkg: &str,
+) -> anyhow::Result<Option<bool>> {
     // TODO: introduce a ctrl-c handler to kill only the nix-build if needed?
-    Ok(
-        crate::run_nix(killer, false, &["build", &crate::nix_eval_for(pkg)])
-            .with_context(|| format!("building the {} version of package {}", version, pkg))?
-            .map(|out| out.status.success()),
+    Ok(crate::run_nix(
+        killer,
+        false,
+        &[
+            "build",
+            "--out-link",
+            outs_dir
+                .join(version)
+                .to_str()
+                .ok_or_else(|| anyhow!("got non-utf8 temporary path"))?,
+            &crate::nix_eval_for(pkg),
+        ],
     )
+    .with_context(|| format!("building the {} version of package {}", version, pkg))?
+    .map(|out| out.status.success()))
 }

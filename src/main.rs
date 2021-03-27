@@ -113,7 +113,10 @@ fn run(opt: Opt) -> anyhow::Result<()> {
         // Update our check list
         let new_new_checks = new_checks
             .iter()
-            .flat_map(|c| c.additional_needed_tests().into_iter())
+            .map(|c| c.additional_needed_tests())
+            .collect::<anyhow::Result<Vec<_>>>()?
+            .into_iter()
+            .flat_map(|c| c.into_iter())
             .collect::<Vec<_>>();
         checks.extend(new_checks.drain(..));
         new_checks = new_new_checks
