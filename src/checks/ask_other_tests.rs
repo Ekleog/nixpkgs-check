@@ -10,7 +10,7 @@ impl Chk {
 
         let choices = vec!["NixOS", "MacOS", "Other Linux distributions"];
         let chosen: Vec<usize> = dialoguer::MultiSelect::with_theme(&crate::theme())
-            .with_prompt("on what machines did you already attempt building?")
+            .with_prompt("on what machines did you already attempt building? [space to select, enter to validate]")
             .items(&choices)
             .interact()
             .context("asking the user on which machine they already attempted building")?;
