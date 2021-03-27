@@ -1,13 +1,15 @@
 use anyhow::{anyhow, bail, Context};
+use crossbeam_channel::Receiver;
 
 pub struct Chk {
     sandboxing: bool,
 }
 
 impl Chk {
-    pub fn new() -> anyhow::Result<Chk> {
-        let sandboxing = match crate::nix(&["show-config", "--json"])
+    pub fn new(killer: &Receiver<()>) -> anyhow::Result<Chk> {
+        let sandboxing = match crate::nix(killer, &["show-config", "--json"])
             .context("reading nix's config")?
+            .ok_or_else(|| anyhow!("interrupted nix show-config"))?
             .get("sandbox")
             .ok_or_else(|| anyhow!("nix show-config does not list the sandboxing state"))?
             .get("value")
@@ -34,11 +36,11 @@ impl crate::Check for Chk {
         "environment".to_string()
     }
 
-    fn run_before(&mut self) -> anyhow::Result<()> {
+    fn run_before(&mut self, _: &Receiver<()>) -> anyhow::Result<()> {
         Ok(())
     }
 
-    fn run_after(&mut self) -> anyhow::Result<()> {
+    fn run_after(&mut self, _: &Receiver<()>) -> anyhow::Result<()> {
         Ok(())
     }
 

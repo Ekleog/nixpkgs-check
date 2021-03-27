@@ -1,4 +1,5 @@
 use anyhow::Context;
+use crossbeam_channel::Receiver;
 
 pub struct Chk {
     tests: Vec<String>,
@@ -46,11 +47,11 @@ impl crate::Check for Chk {
         "ask-other-tests".to_string()
     }
 
-    fn run_before(&mut self) -> anyhow::Result<()> {
+    fn run_before(&mut self, _: &Receiver<()>) -> anyhow::Result<()> {
         Ok(())
     }
 
-    fn run_after(&mut self) -> anyhow::Result<()> {
+    fn run_after(&mut self, _: &Receiver<()>) -> anyhow::Result<()> {
         Ok(())
     }
 

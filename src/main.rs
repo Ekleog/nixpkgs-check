@@ -35,6 +35,12 @@ fn run(opt: Opt) -> anyhow::Result<()> {
     let to_check_path = tempdir.path().join("to-check");
     let initial_cwd = std::env::current_dir().context("recovering current working directory")?;
 
+    let (killer_s, killer_r) = crossbeam_channel::bounded::<()>(0);
+    ctrlc::set_handler(move || {
+        let _ = killer_s.try_send(());
+    })
+    .context("setting ctrl-c handler")?;
+
     let (checkout_done_s, checkout_done_r) = std::sync::mpsc::channel::<anyhow::Result<()>>();
     {
         let repo_path = opt.repo_path.clone();
@@ -60,7 +66,7 @@ fn run(opt: Opt) -> anyhow::Result<()> {
 
     let mut checks = vec![];
     let mut new_checks = vec![
-        Box::new(checks::environment::Chk::new().context("checking the environment")?)
+        Box::new(checks::environment::Chk::new(&killer_r).context("checking the environment")?)
             as Box<dyn Check>,
         Box::new(checks::ask_pkg_names::Chk::new(changed_pkgs)?),
         Box::new(checks::ask_other_tests::Chk::new()?),
@@ -69,7 +75,7 @@ fn run(opt: Opt) -> anyhow::Result<()> {
     match checkout_done_r.try_recv() {
         Ok(r) => r,
         Err(_) => {
-            println!("Currently checking out the worktrees, please wait...");
+            println!("you answered the questions too fast, we're still checking out the worktrees, please wait…");
             checkout_done_r
                 .recv()
                 .context("receiving checkout result")?
@@ -89,7 +95,7 @@ fn run(opt: Opt) -> anyhow::Result<()> {
         // Run the “before” tests
         for c in new_checks.iter_mut() {
             println!("Running base version of {}", c.name());
-            c.run_before()
+            c.run_before(&killer_r)
                 .with_context(|| format!("running check {} on base version", c.name()))?;
         }
 
@@ -104,7 +110,7 @@ fn run(opt: Opt) -> anyhow::Result<()> {
         // Run the “after” tests
         for c in new_checks.iter_mut() {
             println!("Running to-check version of {}", c.name());
-            c.run_after()
+            c.run_after(&killer_r)
                 .with_context(|| format!("running check {} on to-check version", c.name()))?;
         }
 

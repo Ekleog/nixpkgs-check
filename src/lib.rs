@@ -1,4 +1,5 @@
 use anyhow::Context;
+use crossbeam_channel::Receiver;
 
 pub mod checks;
 
@@ -35,10 +36,10 @@ pub trait Check {
     fn name(&self) -> String;
 
     /// This is run on the checkout before the changes
-    fn run_before(&mut self) -> anyhow::Result<()>;
+    fn run_before(&mut self, killer: &Receiver<()>) -> anyhow::Result<()>;
 
     /// This is run on the checkout after the changes
-    fn run_after(&mut self) -> anyhow::Result<()>;
+    fn run_after(&mut self, killer: &Receiver<()>) -> anyhow::Result<()>;
 
     /// Returns the tests that are additionally needed
     fn additional_needed_tests(&self) -> Vec<Box<dyn Check>>;
@@ -51,12 +52,19 @@ fn nix_eval_for(pkg: &str) -> String {
     format!("((import ./. {{ overlays = []; }}).{})", pkg)
 }
 
-fn nix(args: &[&str]) -> anyhow::Result<serde_json::Value> {
-    let out = run_nix(true, args)?.stdout;
-    serde_json::from_slice(&out).context("parsing the output of the nix command")
+fn nix(killer: &Receiver<()>, args: &[&str]) -> anyhow::Result<Option<serde_json::Value>> {
+    run_nix(killer, true, args)?
+        .map(|out| {
+            serde_json::from_slice(&out.stdout).context("parsing the output of the nix command")
+        })
+        .transpose()
 }
 
-fn run_nix(capture_stdout: bool, args: &[&str]) -> anyhow::Result<std::process::Output> {
+fn run_nix(
+    killer: &Receiver<()>,
+    capture_stdout: bool,
+    args: &[&str],
+) -> anyhow::Result<Option<std::process::Output>> {
     let mut process = std::process::Command::new("nix");
     process.args(args).stderr(std::process::Stdio::inherit());
     if capture_stdout {
@@ -64,7 +72,18 @@ fn run_nix(capture_stdout: bool, args: &[&str]) -> anyhow::Result<std::process::
     } else {
         process.stdout(std::process::Stdio::inherit());
     }
-    process.output().context("executing the nix command")
+    let mut child = process.spawn().context("spawning the nix command")?;
+    while child.try_wait().context("waiting for nix")?.is_none() {
+        if let Ok(()) = killer.recv_timeout(std::time::Duration::from_millis(50)) {
+            // Leave some time for the ctrl-c to reach nix
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            let _ = child.kill();
+            return Ok(None);
+        }
+    }
+    Ok(Some(child.wait_with_output().context(
+        "retrieving the output from a known-completed process",
+    )?))
 }
 
 fn theme() -> impl dialoguer::theme::Theme {

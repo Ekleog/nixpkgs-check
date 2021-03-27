@@ -1,5 +1,6 @@
 use ansi_term::Style;
 use anyhow::Context;
+use crossbeam_channel::Receiver;
 
 pub struct Chk {
     pkgs: Vec<String>,
@@ -36,11 +37,11 @@ impl crate::Check for Chk {
         "ask-package-names".to_string()
     }
 
-    fn run_before(&mut self) -> anyhow::Result<()> {
+    fn run_before(&mut self, _: &Receiver<()>) -> anyhow::Result<()> {
         Ok(())
     }
 
-    fn run_after(&mut self) -> anyhow::Result<()> {
+    fn run_after(&mut self, _: &Receiver<()>) -> anyhow::Result<()> {
         Ok(())
     }
 

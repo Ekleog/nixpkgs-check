@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Context};
+use crossbeam_channel::Receiver;
 use std::convert::TryFrom;
 
 pub struct Chk {
@@ -29,13 +30,13 @@ impl crate::Check for Chk {
         format!("closure-size({})", self.pkg)
     }
 
-    fn run_before(&mut self) -> anyhow::Result<()> {
-        self.closure_size_before = Some(closure_size("base", &self.pkg)?);
+    fn run_before(&mut self, killer: &Receiver<()>) -> anyhow::Result<()> {
+        self.closure_size_before = closure_size(killer, "base", &self.pkg)?;
         Ok(())
     }
 
-    fn run_after(&mut self) -> anyhow::Result<()> {
-        self.closure_size_after = Some(closure_size("to-check", &self.pkg)?);
+    fn run_after(&mut self, killer: &Receiver<()>) -> anyhow::Result<()> {
+        self.closure_size_after = closure_size(killer, "to-check", &self.pkg)?;
         Ok(())
     }
 
@@ -44,18 +45,14 @@ impl crate::Check for Chk {
     }
 
     fn report(&self) -> String {
-        let cs_before = self.closure_size_before.unwrap_or_else(|| {
-            panic!(
-                "did not check closure size for the base version of {}",
+        if self.closure_size_before.is_none() || self.closure_size_after.is_none() {
+            return format!(
+                "**closure size for {}:** 😢 check was interrupted",
                 self.pkg
-            )
-        });
-        let cs_after = self.closure_size_after.unwrap_or_else(|| {
-            panic!(
-                "did not check closure size for the base version of {}",
-                self.pkg
-            )
-        });
+            );
+        }
+        let cs_before = self.closure_size_before.unwrap();
+        let cs_after = self.closure_size_after.unwrap();
         let cs_before_i = i64::try_from(cs_before.as_u64()).unwrap();
         let cs_after_i = i64::try_from(cs_after.as_u64()).unwrap();
         let diff: i64 = cs_after_i - cs_before_i;
@@ -76,20 +73,34 @@ impl crate::Check for Chk {
     }
 }
 
-fn closure_size(version: &str, pkg: &str) -> anyhow::Result<bytesize::ByteSize> {
-    Ok(bytesize::ByteSize::b(
-        crate::nix(&["path-info", "--json", "-S", &crate::nix_eval_for(pkg)])
-            .with_context(|| {
-                format!(
-                    "getting closure size of the {} version of package {}",
-                    version, pkg
-                )
-            })?
-            .get(0)
-            .ok_or_else(|| anyhow!("output of nix path-info -S is not an array"))?
-            .get("closureSize")
-            .ok_or_else(|| anyhow!("output of nix path-info -S does not have closureSize element"))?
-            .as_u64()
-            .ok_or_else(|| anyhow!("output of nix path-info -S has a non-integer closureSize"))?,
-    ))
+fn closure_size(
+    killer: &Receiver<()>,
+    version: &str,
+    pkg: &str,
+) -> anyhow::Result<Option<bytesize::ByteSize>> {
+    crate::nix(
+        killer,
+        &["path-info", "--json", "-S", &crate::nix_eval_for(pkg)],
+    )
+    .with_context(|| {
+        format!(
+            "getting closure size of the {} version of package {}",
+            version, pkg
+        )
+    })?
+    .map(|size| -> anyhow::Result<bytesize::ByteSize> {
+        Ok(bytesize::ByteSize::b(
+            size.get(0)
+                .ok_or_else(|| anyhow!("output of nix path-info -S is not an array"))?
+                .get("closureSize")
+                .ok_or_else(|| {
+                    anyhow!("output of nix path-info -S does not have closureSize element")
+                })?
+                .as_u64()
+                .ok_or_else(|| {
+                    anyhow!("output of nix path-info -S has a non-integer closureSize")
+                })?,
+        ))
+    })
+    .transpose()
 }
