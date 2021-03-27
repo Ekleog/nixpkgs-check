@@ -71,11 +71,7 @@ impl crate::Check for Chk {
 /// Returns true iff the build was successful
 fn build(version: &str, pkg: &str) -> anyhow::Result<bool> {
     // TODO: introduce a ctrl-c handler to kill only the nix-build if needed?
-    Ok(std::process::Command::new("nix")
-        .args(&["build", &crate::nix_eval_for(pkg)])
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
-        .output()
+    Ok(crate::run_nix(false, &["build", &crate::nix_eval_for(pkg)])
         .with_context(|| format!("building the {} version of package {}", version, pkg))?
         .status
         .success())

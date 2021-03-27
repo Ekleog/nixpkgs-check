@@ -52,13 +52,19 @@ fn nix_eval_for(pkg: &str) -> String {
 }
 
 fn nix(args: &[&str]) -> anyhow::Result<serde_json::Value> {
-    let out = std::process::Command::new("nix")
-        .args(args)
-        .stderr(std::process::Stdio::inherit())
-        .output()
-        .context("executing the nix command")?
-        .stdout;
+    let out = run_nix(true, args)?.stdout;
     serde_json::from_slice(&out).context("parsing the output of the nix command")
+}
+
+fn run_nix(capture_stdout: bool, args: &[&str]) -> anyhow::Result<std::process::Output> {
+    let mut process = std::process::Command::new("nix");
+    process.args(args).stderr(std::process::Stdio::inherit());
+    if capture_stdout {
+        process.stdout(std::process::Stdio::piped());
+    } else {
+        process.stdout(std::process::Stdio::inherit());
+    }
+    process.output().context("executing the nix command")
 }
 
 fn theme() -> impl dialoguer::theme::Theme {
