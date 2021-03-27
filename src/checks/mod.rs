@@ -4,3 +4,4 @@ pub mod build;
 pub mod closure_size;
 pub mod environment;
 pub mod run_binaries;
+pub mod run_tests;

@@ -49,8 +49,12 @@ pub trait Check {
     fn report(&self) -> String;
 }
 
+fn nixpkgs() -> &'static str {
+    "(import ./. { overlays = []; })"
+}
+
 fn nix_eval_for(pkg: &str) -> String {
-    format!("((import ./. {{ overlays = []; }}).{})", pkg)
+    format!("({}.{})", nixpkgs(), pkg)
 }
 
 fn nix(killer: &Receiver<()>, args: &[&str]) -> anyhow::Result<Option<serde_json::Value>> {

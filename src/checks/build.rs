@@ -54,10 +54,13 @@ impl crate::Check for Chk {
             );
         }
         if self.builds_after == Some(true) {
+            res.push(Box::new(crate::checks::run_tests::Chk::new(
+                self.pkg.clone(),
+            )));
             res.push(Box::new(crate::checks::run_binaries::Chk::new(
                 self.pkg.clone(),
                 self.outs_dir.clone(),
-            )))
+            )));
         }
         Ok(res)
     }
