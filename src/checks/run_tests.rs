@@ -45,9 +45,12 @@ impl crate::Check for Chk {
     }
 
     fn report(&self) -> String {
+        let mut res = format!("**tests of {}:**", self.pkg);
         if self.builds_before.is_empty() && self.builds_after.is_empty() {
-            return String::new();
+            res += " 😢 there are no tests";
+            return res;
         }
+        res += "\n";
 
         let tests_before = self
             .builds_before
@@ -73,7 +76,6 @@ impl crate::Check for Chk {
             .map(|t| (t.clone(), (self.builds_before[t], self.builds_after[t])))
             .collect::<HashMap<String, (Option<bool>, Option<bool>)>>();
 
-        let mut res = format!("**tests of {}:**\n", self.pkg);
         if !removed_tests.is_empty() {
             res += &format!("  * *removed tests:* 😢 {:?}\n", removed_tests);
         }
