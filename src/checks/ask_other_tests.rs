@@ -7,6 +7,20 @@ pub struct Chk {
 impl Chk {
     pub fn new() -> anyhow::Result<Chk> {
         let mut tests = Vec::new();
+
+        let choices = vec!["NixOS", "MacOS", "Other Linux distributions"];
+        let chosen: Vec<usize> = dialoguer::MultiSelect::with_theme(&crate::theme())
+            .with_prompt("on what machines did you already attempt building?")
+            .items(&choices)
+            .interact()
+            .context("asking the user on which machine they already attempted building")?;
+        for (i, c) in choices.iter().enumerate() {
+            tests.push(match chosen.contains(&i) {
+                true => format!("✔ built on {}", c),
+                false => format!("😢 not built on {}", c),
+            });
+        }
+
         loop {
             let test: String = dialoguer::Input::with_theme(&crate::theme())
                 .allow_empty(true)
@@ -18,6 +32,7 @@ impl Chk {
             }
             tests.push(test);
         }
+
         Ok(Chk { tests })
     }
 }
@@ -44,9 +59,9 @@ impl crate::Check for Chk {
     }
 
     fn report(&self) -> String {
-        let mut res = String::from("**manual tests declared performed:**");
+        let mut res = String::from("**manual tests declared performed:**\n");
         for test in &self.tests {
-            res += &format!("\n * {}", test);
+            res += &format!(" * {}\n", test);
         }
         res
     }
