@@ -66,7 +66,7 @@ impl crate::Check for Chk {
         match (self.builds_before, self.builds_after) {
             (None, None) => format!("**package {}:** 😢 both builds interrupted", self.pkg),
             (None, Some(after)) => format!(
-                "**package {}:** 😢 initial build interrupted, to-check build {}",
+                "**package {}:** 😢 base build interrupted, to-check build {}",
                 self.pkg,
                 if after { "passed" } else { "did not pass" },
             ),

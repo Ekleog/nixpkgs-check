@@ -25,7 +25,7 @@ impl Chk {
         loop {
             let test: String = dialoguer::Input::with_theme(&crate::theme())
                 .allow_empty(true)
-                .with_prompt("did you run other manual tests? [empty to stop]")
+                .with_prompt("what other manual tests did you run? [empty to stop]")
                 .interact_text()
                 .context("asking the user for other tests")?;
             if test.len() == 0 {

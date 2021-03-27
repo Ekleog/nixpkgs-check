@@ -1,4 +1,3 @@
-use ansi_term::Style;
 use anyhow::Context;
 use crossbeam_channel::Receiver;
 use std::collections::HashSet;
@@ -8,16 +7,23 @@ pub struct Chk {
 }
 
 impl Chk {
-    pub fn new(mut pkgs: HashSet<String>) -> anyhow::Result<Chk> {
-        println!(
-            "{} {:?}",
-            Style::new().bold().paint("autodetected changed packages:"),
-            pkgs
-        );
+    pub fn new(pkgs: HashSet<String>) -> anyhow::Result<Chk> {
+        let choices = pkgs.into_iter().collect::<Vec<_>>();
+        let chosen = dialoguer::MultiSelect::with_theme(&crate::theme())
+            .with_prompt("which packages do you want to test?")
+            .items(&choices)
+            .defaults(&choices.iter().map(|_| true).collect::<Vec<_>>())
+            .interact()
+            .context("asking the user for package names")?;
+
+        let mut pkgs = chosen
+            .into_iter()
+            .map(|i| choices[i].clone())
+            .collect::<HashSet<String>>();
         loop {
             let pkg: String = dialoguer::Input::with_theme(&crate::theme())
                 .allow_empty(true)
-                .with_prompt("what other attribute paths do you want to test? [empty to stop]")
+                .with_prompt("what other packages do you want to test? [empty to stop]")
                 .interact_text()
                 .context("asking the user for package names")?;
             if pkg.len() == 0 {
