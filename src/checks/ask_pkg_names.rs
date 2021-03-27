@@ -13,12 +13,11 @@ impl Chk {
             pkgs
         );
         loop {
-            let pkg: String =
-                dialoguer::Input::with_theme(&dialoguer::theme::ColorfulTheme::default())
-                    .allow_empty(true)
-                    .with_prompt("do you want to test other attribute paths? [empty to stop]")
-                    .interact_text()
-                    .context("asking the user for package names")?;
+            let pkg: String = dialoguer::Input::with_theme(&crate::theme())
+                .allow_empty(true)
+                .with_prompt("do you want to test other attribute paths? [empty to stop]")
+                .interact_text()
+                .context("asking the user for package names")?;
             if pkg.len() == 0 {
                 break;
             }

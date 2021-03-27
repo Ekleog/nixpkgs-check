@@ -8,12 +8,11 @@ impl Chk {
     pub fn new() -> anyhow::Result<Chk> {
         let mut tests = Vec::new();
         loop {
-            let test: String =
-                dialoguer::Input::with_theme(&dialoguer::theme::ColorfulTheme::default())
-                    .allow_empty(true)
-                    .with_prompt("did you run manual tests? [empty to stop]")
-                    .interact_text()
-                    .context("asking the user for other tests")?;
+            let test: String = dialoguer::Input::with_theme(&crate::theme())
+                .allow_empty(true)
+                .with_prompt("did you run other manual tests? [empty to stop]")
+                .interact_text()
+                .context("asking the user for other tests")?;
             if test.len() == 0 {
                 break;
             }

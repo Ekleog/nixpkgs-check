@@ -60,3 +60,7 @@ fn nix(args: &[&str]) -> anyhow::Result<serde_json::Value> {
         .stdout;
     serde_json::from_slice(&out).context("parsing the output of the nix command")
 }
+
+fn theme() -> impl dialoguer::theme::Theme {
+    dialoguer::theme::ColorfulTheme::default()
+}
