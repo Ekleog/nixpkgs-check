@@ -39,7 +39,10 @@ fn run(opt: Opt) -> anyhow::Result<()> {
     })
     .context("setting ctrl-c handler")?;
 
-    let (checkout_done_s, checkout_done_r) = std::sync::mpsc::channel::<anyhow::Result<()>>();
+    let (checkout_base_done_s, checkout_base_done_r) =
+        std::sync::mpsc::channel::<anyhow::Result<()>>();
+    let (checkout_tocheck_done_s, checkout_tocheck_done_r) =
+        std::sync::mpsc::channel::<anyhow::Result<()>>();
     {
         let repo_path = opt.repo_path.clone();
         let base_path = base_path.clone();
@@ -47,40 +50,67 @@ fn run(opt: Opt) -> anyhow::Result<()> {
         let base_ref = opt.base_ref.clone();
         let to_check_ref = opt.to_check_ref.clone();
         std::thread::spawn(move || {
-            checkout_done_s
-                .send(setup_checkouts(
-                    &repo_path,
-                    &base_path,
-                    &to_check_path,
-                    &base_ref,
-                    &to_check_ref,
-                ))
-                .expect("failed sending checkout result");
+            let (repo, base_oid, to_check_oid) =
+                match prepare_checking_out(&repo_path, &base_ref, &to_check_ref) {
+                    Ok(res) => res,
+                    Err(e) => {
+                        checkout_base_done_s
+                            .send(Err(e))
+                            .expect("failed sending prepare-checkout failure");
+                        return;
+                    }
+                };
+            match setup_checkout(&repo, &base_path, base_oid) {
+                Ok(()) => checkout_base_done_s
+                    .send(Ok(()))
+                    .expect("failed sending base checkout success"),
+                Err(e) => {
+                    checkout_base_done_s
+                        .send(Err(e))
+                        .expect("failed sending base checkout failure");
+                    return;
+                }
+            }
+            checkout_tocheck_done_s
+                .send(
+                    setup_checkout(&repo, &to_check_path, to_check_oid)
+                        .context("checking out to-check worktree"),
+                )
+                .expect("failed sending to-check checkout results");
         });
     }
 
     let changed_pkgs = autodetect_changed_pkgs(&opt.repo_path, &opt.base_ref, &opt.to_check_ref)
         .context("auto-detecting which packages were changed based on commit message")?;
 
-    let mut checks = vec![];
-    let mut new_checks = vec![
+    // Note: these three checks all don't have the run_{before,after}
+    // methods implemented
+    let mut checks = vec![
         Box::new(checks::environment::Chk::new(&killer_r).context("checking the environment")?)
             as Box<dyn Check>,
         Box::new(checks::ask_pkg_names::Chk::new(changed_pkgs)?),
         Box::new(checks::ask_other_tests::Chk::new()?),
     ];
+    let mut new_checks = checks
+        .iter()
+        .map(|c| c.additional_needed_tests())
+        .collect::<anyhow::Result<Vec<_>>>()?
+        .into_iter()
+        .flat_map(|c| c.into_iter())
+        .collect::<Vec<_>>();
 
-    match checkout_done_r.try_recv() {
+    match checkout_base_done_r.try_recv() {
         Ok(r) => r,
         Err(_) => {
-            println!("you answered the questions too fast, we're still checking out the worktrees, please wait…");
-            checkout_done_r
+            println!("you answered the questions too fast, we're still checking out the base worktree, please wait…");
+            checkout_base_done_r
                 .recv()
-                .context("receiving checkout result")?
+                .context("receiving base checkout result")?
         }
     }
-    .context("checking out worktrees")?;
+    .context("checking out base worktree")?;
 
+    let mut is_first_run = true; // used to know whether to wait for checkout_tocheck_done_r
     while !new_checks.is_empty() {
         // Go to the “before” folder
         std::env::set_current_dir(&base_path).with_context(|| {
@@ -95,6 +125,22 @@ fn run(opt: Opt) -> anyhow::Result<()> {
             println!("running base version of {}", c.name());
             c.run_before(&killer_r)
                 .with_context(|| format!("running check {} on base version", c.name()))?;
+        }
+
+        // If this is our first run, the to-check worktree may not be
+        // ready yet, in which case let's wait for it.
+        if is_first_run {
+            is_first_run = false;
+            match checkout_tocheck_done_r.try_recv() {
+                Ok(r) => r,
+                Err(_) => {
+                    println!("the builds completed too fast, we're still checking out the to-check worktree, please wait…");
+                    checkout_tocheck_done_r
+                        .recv()
+                        .context("receiving to-check checkout result")?
+                }
+            }
+            .context("checking out base worktree")?;
         }
 
         // Go to the “after” folder
@@ -191,73 +237,59 @@ fn main() {
     }
 }
 
-fn setup_checkouts(
+/// Returns (repo, base-oid, to-check-oid) on success
+fn prepare_checking_out(
     repo_path: &Path,
-    base_path: &Path,
-    to_check_path: &Path,
     base_ref: &str,
     to_check_ref: &str,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<(git2::Repository, git2::Oid, git2::Oid)> {
     // Open the repo
     let repo = git2::Repository::open(repo_path)
         .with_context(|| format!("opening the nixpkgs repo {:?}", repo_path))?;
 
-    // Resolve the reference names
-    let base_obj = repo
-        .revparse_single(&base_ref)
-        .with_context(|| format!("finding reference {:?} in repo {:?}", base_ref, repo_path))?;
-    let to_check_obj = repo.revparse_single(to_check_ref).with_context(|| {
-        format!(
-            "finding reference {:?} in repo {:?}",
-            to_check_ref, repo_path
-        )
-    })?;
+    // Resolve the to-check reference name
+    let to_check_oid = repo
+        .revparse_single(to_check_ref)
+        .with_context(|| {
+            format!(
+                "finding reference {:?} in repo {:?}",
+                to_check_ref, repo_path
+            )
+        })?
+        .id();
 
     // The base reference is actually merge-base(base, to-check)
-    let base_oid = repo
-        .merge_base(base_obj.id(), to_check_obj.id())
-        .context("finding the merge-base of the base reference and the to-check reference")?;
+    let base_oid = {
+        let base_obj = repo
+            .revparse_single(&base_ref)
+            .with_context(|| format!("finding reference {:?} in repo {:?}", base_ref, repo_path))?;
+        repo.merge_base(base_obj.id(), to_check_oid)
+            .context("finding the merge-base of the base reference and the to-check reference")?
+    };
 
-    // Checkout the worktrees
-    let base_wt = repo
+    Ok((repo, base_oid, to_check_oid))
+}
+
+fn setup_checkout(repo: &git2::Repository, path: &Path, oid: git2::Oid) -> anyhow::Result<()> {
+    let wt = repo
         .worktree(
             uuid::Uuid::new_v4()
                 .to_hyphenated()
                 .encode_lower(&mut uuid::Uuid::encode_buffer()),
-            &base_path,
+            &path,
             None,
         )
-        .context("creating worktree for base commit")?;
-    let base_repo = git2::Repository::open_from_worktree(&base_wt)
-        .context("opening base worktree as a repository")?;
-    base_repo
+        .context("creating worktree")?;
+    let wt_repo =
+        git2::Repository::open_from_worktree(&wt).context("opening worktree as a repository")?;
+    wt_repo
         .checkout_tree(
-            &base_repo
-                .find_object(base_oid, None)
+            &wt_repo
+                .find_object(oid, None)
                 .context("converting repo object to worktree object")?,
             None,
         )
-        .context("checking out base commit in worktree")?;
-
-    let to_check_wt = repo
-        .worktree(
-            uuid::Uuid::new_v4()
-                .to_hyphenated()
-                .encode_lower(&mut uuid::Uuid::encode_buffer()),
-            &to_check_path,
-            None,
-        )
-        .context("creating worktree for to-check commit")?;
-    let to_check_repo = git2::Repository::open_from_worktree(&to_check_wt)
-        .context("opening base worktree as a repository")?;
-    to_check_repo
-        .checkout_tree(
-            &to_check_repo
-                .find_object(to_check_obj.id(), None)
-                .context("converting repo object to worktree object")?,
-            None,
-        )
-        .context("checking out to-check commit in worktree")?;
+        .with_context(|| format!("checking out commit {} in worktree at path {:?}", oid, path))?;
 
     Ok(())
 }

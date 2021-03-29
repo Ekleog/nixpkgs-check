@@ -45,11 +45,11 @@ impl crate::Check for Chk {
     }
 
     fn run_before(&mut self, _: &Receiver<()>) -> anyhow::Result<()> {
-        Ok(())
+        unimplemented!()
     }
 
     fn run_after(&mut self, _: &Receiver<()>) -> anyhow::Result<()> {
-        Ok(())
+        unimplemented!()
     }
 
     fn additional_needed_tests(&self) -> anyhow::Result<Vec<Box<dyn crate::Check>>> {
