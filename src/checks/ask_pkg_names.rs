@@ -10,7 +10,7 @@ impl Chk {
     pub fn new(pkgs: HashSet<String>) -> anyhow::Result<Chk> {
         let choices = pkgs.into_iter().collect::<Vec<_>>();
         let chosen = dialoguer::MultiSelect::with_theme(&crate::theme())
-            .with_prompt("which packages do you want to test?")
+            .with_prompt("which packages do you want to test? [space to select, enter to validate]")
             .items(&choices)
             .defaults(&choices.iter().map(|_| true).collect::<Vec<_>>())
             .interact()
