@@ -1,13 +1,13 @@
-use anyhow::{anyhow, bail, Context};
+use anyhow::{anyhow, Context};
 use crossbeam_channel::Receiver;
 
 pub struct Chk {
-    sandboxing: bool,
+    sandboxing: String,
 }
 
 impl Chk {
     pub fn new(killer: &Receiver<()>) -> anyhow::Result<Chk> {
-        let sandboxing = match crate::nix(killer, &["show-config", "--json"])
+        let sandboxing = crate::nix(killer, &["show-config", "--json"])
             .context("reading nix's config")?
             .ok_or_else(|| anyhow!("interrupted nix show-config"))?
             .get("sandbox")
@@ -18,11 +18,7 @@ impl Chk {
             })?
             .as_str()
             .ok_or_else(|| anyhow!("nix show-config's sandboxing state is not a string"))?
-        {
-            "true" => true,
-            "false" => false,
-            _ => bail!("nix show-config's sandboxing state is neither true nor false"),
-        };
+            .to_string();
         Ok(Chk { sandboxing })
     }
 }
@@ -50,11 +46,11 @@ impl crate::Check for Chk {
 
     fn report(&self) -> String {
         format!(
-            "**version:** `{} v{}` on {} {} sandboxing",
+            "**version:** `{} v{}` on {}, sandbox = {:?}",
             env!("CARGO_PKG_NAME"),
             env!("CARGO_PKG_VERSION"),
             detect_environment(),
-            if self.sandboxing { "with" } else { "without" },
+            self.sandboxing,
         )
     }
 }
