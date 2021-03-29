@@ -64,7 +64,7 @@ impl crate::Check for Chk {
 
         // Figure out which binaries to run
         let choices = to_check_bins.iter().cloned().collect::<Vec<_>>();
-        let chosen: Vec<usize> = dialoguer::MultiSelect::with_theme(&crate::theme())
+        let chosen: Vec<usize> = dialoguer::MultiSelect::with_theme(&*crate::theme())
             .with_prompt(&format!(
                 "which binaries of package {} do you want to run?",
                 self.pkg
@@ -176,7 +176,7 @@ fn run_binary(
     let mut try_arguments = vec!["--version", "--help", "-h", "-V"].into_iter().fuse();
     loop {
         // Ask the user which arguments to pass
-        let mut args = dialoguer::Input::with_theme(&theme);
+        let mut args = dialoguer::Input::with_theme(&*theme);
         args.with_prompt(format!(
             "what arguments should we pass to the {} version of {} in package {}?",
             version, bin, pkg
@@ -200,7 +200,7 @@ fn run_binary(
         .with_context(|| format!("running binary {} of package {}", bin, pkg))?;
 
         // Ask the user whether the run was a success
-        let res = dialoguer::Select::with_theme(&theme)
+        let res = dialoguer::Select::with_theme(&*theme)
             .with_prompt("did the binary work?")
             .items(&["Yes", "No", "Try again with other arguments"])
             .default(2)

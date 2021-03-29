@@ -100,6 +100,10 @@ fn run(
     )?))
 }
 
-fn theme() -> impl dialoguer::theme::Theme {
-    dialoguer::theme::ColorfulTheme::default()
+fn theme() -> Box<dyn dialoguer::theme::Theme> {
+    if console::colors_enabled() {
+        Box::new(dialoguer::theme::ColorfulTheme::default()) as Box<dyn dialoguer::theme::Theme>
+    } else {
+        Box::new(dialoguer::theme::SimpleTheme)
+    }
 }

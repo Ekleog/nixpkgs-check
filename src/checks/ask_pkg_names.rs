@@ -9,7 +9,7 @@ pub struct Chk {
 impl Chk {
     pub fn new(pkgs: HashSet<String>) -> anyhow::Result<Chk> {
         let choices = pkgs.into_iter().collect::<Vec<_>>();
-        let chosen = dialoguer::MultiSelect::with_theme(&crate::theme())
+        let chosen = dialoguer::MultiSelect::with_theme(&*crate::theme())
             .with_prompt("which packages do you want to test? [space to select, enter to validate]")
             .items(&choices)
             .defaults(&choices.iter().map(|_| true).collect::<Vec<_>>())
@@ -21,7 +21,7 @@ impl Chk {
             .map(|i| choices[i].clone())
             .collect::<HashSet<String>>();
         loop {
-            let pkg: String = dialoguer::Input::with_theme(&crate::theme())
+            let pkg: String = dialoguer::Input::with_theme(&*crate::theme())
                 .allow_empty(true)
                 .with_prompt("what other packages do you want to test? [empty to stop]")
                 .interact_text()

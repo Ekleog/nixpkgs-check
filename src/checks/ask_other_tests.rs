@@ -10,7 +10,7 @@ impl Chk {
         let mut tests = Vec::new();
 
         let choices = vec!["NixOS", "MacOS", "Other Linux distributions"];
-        let chosen: Vec<usize> = dialoguer::MultiSelect::with_theme(&crate::theme())
+        let chosen: Vec<usize> = dialoguer::MultiSelect::with_theme(&*crate::theme())
             .with_prompt("on what machines did you already attempt building? [space to select, enter to validate]")
             .items(&choices)
             .interact()
@@ -23,7 +23,7 @@ impl Chk {
         }
 
         loop {
-            let test: String = dialoguer::Input::with_theme(&crate::theme())
+            let test: String = dialoguer::Input::with_theme(&*crate::theme())
                 .allow_empty(true)
                 .with_prompt("what other manual tests did you run? [empty to stop]")
                 .interact_text()

@@ -14,7 +14,7 @@ rustPlatform.buildRustPackage {
     openssl
   ];
 
-  cargoSha256 = "0k7m0i7lxzl5hzjlc8jm9r4yh8z6lypynz9xhdjpcyyk8911jmlw";
+  cargoSha256 = "1axvlqwvy9br8i4v45swhvdkq0804qrafdrbhay7s1bq2sm1q8ml";
 
   postInstall = ''
     wrapProgram "$out/bin/nixpkgs-check" \

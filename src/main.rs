@@ -1,4 +1,3 @@
-use ansi_term::{Colour::Red, Style};
 use anyhow::{anyhow, Context};
 use nixpkgs_check::{checks, Check};
 use std::{
@@ -7,8 +6,8 @@ use std::{
 };
 use structopt::StructOpt;
 
-fn error() -> ansi_term::ANSIString<'static> {
-    Red.bold().paint("error")
+fn error() -> console::StyledObject<&'static str> {
+    console::style("error").red().bold()
 }
 
 #[derive(StructOpt)]
@@ -179,13 +178,14 @@ fn main() {
             eprintln!(
                 "{}:  {}",
                 error(),
-                Style::new().bold().paint(format!(
+                console::style(format!(
                     "{}",
                     errs.next().expect("got error chain with zero errors")
                 ))
+                .bold()
             );
             for e in errs {
-                eprintln!("  while {}", Style::new().bold().paint(format!("{}", e)));
+                eprintln!("  while {}", console::style(format!("{}", e)).bold());
             }
         }
     }
