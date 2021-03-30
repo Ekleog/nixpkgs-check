@@ -1,4 +1,4 @@
-{ lib, rustPlatform, openssl, pkg-config, makeWrapper, nix }:
+{ lib, rustPlatform, pkg-config, openssl, path, makeWrapper, nix }:
 
 rustPlatform.buildRustPackage {
   name = "nixpkgs-check";
@@ -14,7 +14,9 @@ rustPlatform.buildRustPackage {
     openssl
   ];
 
-  cargoSha256 = "1axvlqwvy9br8i4v45swhvdkq0804qrafdrbhay7s1bq2sm1q8ml";
+  cargoSha256 = "11p5fghyfbbgf5gqq1r10df963pc5fv6gmw860am575cva93xrly";
+
+  CONTRIBUTING_MD_PATH = path + "/.github/CONTRIBUTING.md";
 
   postInstall = ''
     wrapProgram "$out/bin/nixpkgs-check" \

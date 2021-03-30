@@ -49,6 +49,29 @@ pub trait Check {
     fn report(&self) -> String;
 }
 
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct State {
+    last_contributing: Option<String>,
+}
+
+impl Default for State {
+    fn default() -> State {
+        State {
+            last_contributing: None,
+        }
+    }
+}
+
+impl State {
+    pub fn load<R: std::io::Read>(from: R) -> anyhow::Result<State> {
+        serde_json::from_reader(from).context("deserializing the state")
+    }
+
+    pub fn save<W: std::io::Write>(&self, to: W) -> anyhow::Result<()> {
+        serde_json::to_writer(to, &self).context("serializing the state")
+    }
+}
+
 fn nixpkgs() -> &'static str {
     "(import ./. { overlays = []; })"
 }

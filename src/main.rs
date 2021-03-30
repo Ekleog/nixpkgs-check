@@ -1,10 +1,12 @@
 use anyhow::{anyhow, Context};
-use nixpkgs_check::{checks, Check};
+use nixpkgs_check::{checks, Check, State};
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
 };
 use structopt::StructOpt;
+
+const STATE_FILE: &str = "state.json";
 
 fn error() -> console::StyledObject<&'static str> {
     console::style("error").red().bold()
@@ -80,6 +82,16 @@ fn run(opt: Opt) -> anyhow::Result<()> {
         });
     }
 
+    let xdg_dirs = xdg::BaseDirectories::with_prefix("nixpkgs-check")
+        .context("finding the right XDG directories")?;
+    let mut state = match xdg_dirs.find_data_file(STATE_FILE) {
+        Some(path) => State::load(
+            std::fs::File::open(&path).with_context(|| format!("opening state file {:?}", path))?,
+        )
+        .with_context(|| format!("parsing state file {:?}", path))?,
+        None => State::default(),
+    };
+
     let changed_pkgs = autodetect_changed_pkgs(&opt.repo_path, &opt.base_ref, &opt.to_check_ref)
         .context("auto-detecting which packages were changed based on commit message")?;
 
@@ -90,6 +102,7 @@ fn run(opt: Opt) -> anyhow::Result<()> {
             as Box<dyn Check>,
         Box::new(checks::ask_pkg_names::Chk::new(changed_pkgs)?),
         Box::new(checks::ask_other_tests::Chk::new()?),
+        Box::new(checks::confirm_contributing::Chk::new(&mut state)?),
     ];
     let mut new_checks = checks
         .iter()
@@ -212,6 +225,17 @@ fn run(opt: Opt) -> anyhow::Result<()> {
     for c in checks {
         println!("{}", c.report());
     }
+
+    // Save the state
+    let state_file = xdg_dirs
+        .place_data_file(STATE_FILE)
+        .context("creating the directories for the state file")?;
+    state
+        .save(
+            std::fs::File::create(&state_file)
+                .with_context(|| format!("creating state file {:?}", state_file))?,
+        )
+        .with_context(|| format!("saving the state to state file {:?}", state_file))?;
 
     Ok(())
 }

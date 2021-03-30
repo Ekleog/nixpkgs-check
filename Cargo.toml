@@ -11,9 +11,12 @@ console = "0.14.1"
 crossbeam-channel = "0.5.0"
 ctrlc = "3.1"
 dialoguer = "0.8.0"
+diff = "0.1.12"
 git2 = "0.13.17"
 os_type = "2.2"
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 structopt = "0.3.21"
 tempfile = "3.2"
 uuid = { version = "0.8.2", features = ["v4"] }
+xdg = "2.2"
