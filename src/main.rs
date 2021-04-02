@@ -257,6 +257,7 @@ fn main() {
             for e in errs {
                 eprintln!("  while {}", console::style(format!("{}", e)).bold());
             }
+            std::process::exit(1);
         }
     }
 }
