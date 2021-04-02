@@ -8,18 +8,26 @@ pub struct Chk {
 
 impl Chk {
     pub fn new(pkgs: HashSet<String>) -> anyhow::Result<Chk> {
-        let choices = pkgs.into_iter().collect::<Vec<_>>();
-        let chosen = dialoguer::MultiSelect::with_theme(&*crate::theme())
-            .with_prompt("which packages do you want to test? [space to select, enter to validate]")
-            .items(&choices)
-            .defaults(&choices.iter().map(|_| true).collect::<Vec<_>>())
-            .interact()
-            .context("asking the user for package names")?;
+        let choices = pkgs.into_iter().collect::<Vec<String>>();
 
-        let mut pkgs = chosen
-            .into_iter()
-            .map(|i| choices[i].clone())
-            .collect::<HashSet<String>>();
+        let mut pkgs = HashSet::new();
+        if !choices.is_empty() {
+            let chosen = dialoguer::MultiSelect::with_theme(&*crate::theme())
+                .with_prompt(
+                    "which packages do you want to test? [space to select, enter to validate]",
+                )
+                .items(&choices)
+                .defaults(&choices.iter().map(|_| true).collect::<Vec<_>>())
+                .interact()
+                .context("asking the user for package names")?;
+            pkgs.extend(chosen.into_iter().map(|i| choices[i].clone()));
+        } else {
+            println!(
+                "{}",
+                console::style("no package auto-detected for testing").bold()
+            );
+        }
+
         loop {
             let pkg: String = dialoguer::Input::with_theme(&*crate::theme())
                 .allow_empty(true)
