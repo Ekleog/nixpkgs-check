@@ -56,29 +56,23 @@ fn run(opt: Opt) -> anyhow::Result<()> {
                 match prepare_checking_out(&repo_path, &base_ref, &to_check_ref) {
                     Ok(res) => res,
                     Err(e) => {
-                        checkout_base_done_s
-                            .send(Err(e))
-                            .expect("failed sending prepare-checkout failure");
+                        let _ = checkout_base_done_s.send(Err(e));
                         return;
                     }
                 };
             match setup_checkout(&repo, &base_path, base_oid) {
-                Ok(()) => checkout_base_done_s
-                    .send(Ok(()))
-                    .expect("failed sending base checkout success"),
+                Ok(()) => {
+                    let _ = checkout_base_done_s.send(Ok(()));
+                }
                 Err(e) => {
-                    checkout_base_done_s
-                        .send(Err(e))
-                        .expect("failed sending base checkout failure");
+                    let _ = checkout_base_done_s.send(Err(e));
                     return;
                 }
             }
-            checkout_tocheck_done_s
-                .send(
-                    setup_checkout(&repo, &to_check_path, to_check_oid)
-                        .context("checking out to-check worktree"),
-                )
-                .expect("failed sending to-check checkout results");
+            let _ = checkout_tocheck_done_s.send(
+                setup_checkout(&repo, &to_check_path, to_check_oid)
+                    .context("checking out to-check worktree"),
+            );
         });
     }
 
