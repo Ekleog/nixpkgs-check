@@ -6,6 +6,7 @@ pkgs.stdenv.mkDerivation {
   buildInputs = (
     (with pkgs; [
       cargo
+      nix
       openssl
       pkg-config
       rust-analyzer
