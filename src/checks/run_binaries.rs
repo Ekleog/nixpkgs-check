@@ -51,16 +51,22 @@ impl crate::Check for Chk {
             .with_context(|| format!("listing the base binaries for {}", self.pkg))?
             .into_iter()
             .map(|f| f.file_name().to_str().map(|s| s.to_string()))
-            .collect::<Option<HashSet<String>>>()
-            .ok_or_else(|| anyhow!("a base binary for {} had a non-utf8 name"))?;
+            .collect::<Option<Vec<String>>>()
+            .ok_or_else(|| anyhow!("a base binary for {} had a non-utf8 name"))?
+            .into_iter()
+            .filter(|f| !(f.starts_with(".") && f.ends_with("-wrapped")))
+            .collect::<HashSet<String>>();
         let to_check_bins = std::fs::read_dir(self.outs_dir.path().join("to-check").join("bin"))
             .with_context(|| format!("listing the to-check binaries for {}", self.pkg))?
             .collect::<std::io::Result<Vec<_>>>()
             .with_context(|| format!("listing the to-check binaries for {}", self.pkg))?
             .into_iter()
             .map(|f| f.file_name().to_str().map(|s| s.to_string()))
-            .collect::<Option<HashSet<String>>>()
-            .ok_or_else(|| anyhow!("a to-check binary for {} had a non-utf8 name"))?;
+            .collect::<Option<Vec<String>>>()
+            .ok_or_else(|| anyhow!("a to-check binary for {} had a non-utf8 name"))?
+            .into_iter()
+            .filter(|f| !(f.starts_with(".") && f.ends_with("-wrapped")))
+            .collect::<HashSet<String>>();
 
         // Figure out which binaries to run
         let choices = to_check_bins.iter().cloned().collect::<Vec<_>>();
