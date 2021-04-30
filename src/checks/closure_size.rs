@@ -61,15 +61,19 @@ impl crate::Check for Chk {
             _ if diff > 0 => "💚",
             _ => "😢",
         };
-        let did_incr = match diff {
-            _ if diff > 0 => "increased",
-            _ => "decreased",
-        };
         let abs_diff = bytesize::ByteSize::b(diff.abs() as u64);
-        format!(
-            "**closure size for {}:** {} {} by {}, from {} to {}",
-            self.pkg, emoji, did_incr, abs_diff, cs_before, cs_after
-        )
+        let text = match diff {
+            0 => format!("{} stayed constant, at {}", emoji, cs_after),
+            _ if diff > 0 => format!(
+                "{} increased by {}, from {} to {}",
+                emoji, abs_diff, cs_before, cs_after
+            ),
+            _ => format!(
+                "{} decreased by {}, from {} to {}",
+                emoji, abs_diff, cs_before, cs_after
+            ),
+        };
+        format!("**closure size for {}:** {}", self.pkg, text)
     }
 }
 
