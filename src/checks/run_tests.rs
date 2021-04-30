@@ -84,7 +84,7 @@ impl crate::Check for Chk {
             for (test, result) in &new_tests {
                 match result {
                     None => res += &format!("    * 😢 {} was interrupted\n", test),
-                    Some(true) => res += &format!("    * ✔ {} was run successfully\n", test),
+                    Some(true) => res += &format!("    * 💚 {} was run successfully\n", test),
                     Some(false) => res += &format!("    * 😢 {} was run unsuccessfully\n", test),
                 }
             }
