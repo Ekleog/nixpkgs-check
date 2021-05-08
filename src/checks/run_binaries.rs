@@ -45,8 +45,12 @@ impl crate::Check for Chk {
 
     fn run_after(&mut self, killer: &Receiver<()>) -> anyhow::Result<()> {
         // List the binaries
-        let base_bins = std::fs::read_dir(self.outs_dir.path().join("base").join("bin"))
-            .with_context(|| format!("listing the base binaries for {}", self.pkg))?
+        let bin_dir = match std::fs::read_dir(self.outs_dir.path().join("base").join("bin")) {
+            Ok(d) => d,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(e) => return Err(e).context(format!("listing the base binaries for {}", self.pkg)),
+        };
+        let base_bins = bin_dir
             .collect::<std::io::Result<Vec<_>>>()
             .with_context(|| format!("listing the base binaries for {}", self.pkg))?
             .into_iter()
