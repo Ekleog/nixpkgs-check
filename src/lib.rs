@@ -124,9 +124,14 @@ fn run(
 }
 
 fn theme() -> Box<dyn dialoguer::theme::Theme> {
+    /*
     if console::colors_enabled() {
         Box::new(dialoguer::theme::ColorfulTheme::default()) as Box<dyn dialoguer::theme::Theme>
     } else {
         Box::new(dialoguer::theme::SimpleTheme)
     }
+    */
+    // TODO: the colorful theme is unfortunately hard to use without colors, and is also
+    // unintuitive even for people who see colors, as it's unclear whether boxes are checked or not
+    Box::new(dialoguer::theme::SimpleTheme)
 }
