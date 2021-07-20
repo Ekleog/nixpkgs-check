@@ -58,7 +58,7 @@ impl crate::Check for Chk {
         let diff: i64 = cs_after_i - cs_before_i;
         let emoji = match diff {
             _ if diff.abs() < cs_before_i / 10 => "✔",
-            _ if diff > 0 => "💚",
+            _ if diff < 0 => "💚",
             _ => "😢",
         };
         let abs_diff = bytesize::ByteSize::b(diff.abs() as u64);
